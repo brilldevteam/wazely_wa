@@ -1,0 +1,10 @@
+node_modules/
+client/node_modules 
+.env
+.env.*
+sessions/
+logs/
+*.log
+.DS_Store
+__MACOSX/
+package-lock.json
