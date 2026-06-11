@@ -10,6 +10,7 @@ const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
 const { checkPlan } = require("../middlewares/plan.js");
 const logger = require("../utils/logger.js");
+const META_API_VERSION = process.env.META_API_VERSION || "v18.0";
 
 // adding campaign
 router.post("/add_new", validateUser, checkPlan, async (req, res) => {
@@ -47,7 +48,7 @@ router.post("/add_new", validateUser, checkPlan, async (req, res) => {
     }
 
     const getMetaMobileDetails = await getMetaNumberDetail(
-      "v18.0",
+      META_API_VERSION,
       getMetaAPI[0]?.business_phone_number_id,
       getMetaAPI[0]?.access_token,
     );

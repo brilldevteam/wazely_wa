@@ -17,6 +17,7 @@ const sharp = require("sharp");
 const net = require("net");
 const dns = require("dns").promises;
 const logger = require("../utils/logger");
+const META_API_VERSION = process.env.META_API_VERSION || "v18.0";
 
 // Block private/internal IP ranges
 function isPrivateOrReservedIP(ip) {
@@ -1042,7 +1043,7 @@ async function sendMetatemplet(
   }
 
   // WhatsApp API endpoint
-  const url = `https://graph.facebook.com/v18.0/${business_phone_number_id}/messages`;
+  const url = `https://graph.facebook.com/${META_API_VERSION}/${business_phone_number_id}/messages`;
 
   // Request body
   const body = {
@@ -1116,7 +1117,13 @@ async function getSessionUploadMediaMeta(
   }
 }
 
-async function uploadFileMeta(sessionId, filePath, apiVersion, accessToken) {
+async function uploadFileMeta(
+  sessionId,
+  filePath,
+  apiVersion,
+  accessToken,
+  mimeType = "application/octet-stream",
+) {
   return new Promise(async (resolve) => {
     try {
       // Read the file as binary data
@@ -1130,7 +1137,7 @@ async function uploadFileMeta(sessionId, filePath, apiVersion, accessToken) {
         method: "POST",
         headers: {
           Authorization: `OAuth ${accessToken}`,
-          "Content-Type": "application/pdf",
+          "Content-Type": mimeType,
           Cookie: "ps_l=0; ps_n=0",
         },
         body: fileData,

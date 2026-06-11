@@ -57,6 +57,85 @@ const { returnAddons } = require("../utils/addons.js");
 const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
 const axios = require("axios");
 const logger = require("../utils/logger.js");
+const META_API_VERSION = process.env.META_API_VERSION || "v18.0";
+
+function getMetaErrorMessage(resp) {
+  const error = resp?.error;
+  return (
+    error?.error_user_msg ||
+    error?.error_user_title ||
+    error?.message ||
+    "Meta rejected the request"
+  );
+}
+
+function requiresHeaderUrl(resp) {
+  const message = getMetaErrorMessage(resp).toLowerCase();
+  return message.includes("header_url") && message.includes("header");
+}
+
+function getMediaHeader(body) {
+  return body?.components?.find(
+    (component) =>
+      component?.type === "HEADER" &&
+      ["IMAGE", "VIDEO", "DOCUMENT"].includes(component?.format),
+  );
+}
+
+function getPublicMediaUrl(fileName) {
+  const baseUrl = process.env.FRONTENDURI || process.env.BACKURI;
+  if (!baseUrl || !fileName) return null;
+
+  try {
+    return new URL(`/media/${fileName}`, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+async function isPublicMediaReachable(url) {
+  if (!url) return false;
+
+  let timeout;
+  try {
+    const parsedUrl = new URL(url);
+    const isLocal = ["localhost", "127.0.0.1", "::1"].includes(
+      parsedUrl.hostname,
+    );
+    if (!isLocal && parsedUrl.protocol !== "https:") return false;
+
+    const controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(url, {
+      method: "HEAD",
+      signal: controller.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function logMetaTemplateAttempt({
+  stage,
+  mediaType,
+  hasHandle,
+  hasUrl,
+  response,
+}) {
+  logger.log({
+    event: "meta_template_submission",
+    stage,
+    apiVersion: META_API_VERSION,
+    mediaType: mediaType || null,
+    hasHandle: Boolean(hasHandle),
+    hasUrl: Boolean(hasUrl),
+    metaErrorCode: response?.error?.code || null,
+    componentExample: hasUrl ? "header_url" : hasHandle ? "header_handle" : null,
+  });
+}
 
 const allowedMimeTypes = [
   "image/jpeg",
@@ -948,7 +1027,7 @@ router.post("/update_meta", validateUser, async (req, res) => {
     }
 
     const resp = await getBusinessPhoneNumber(
-      "v18.0",
+      META_API_VERSION,
       business_phone_number_id,
       access_token,
     );
@@ -1063,17 +1142,93 @@ router.post("/add_meta_templet", validateUser, checkPlan, async (req, res) => {
       });
     }
 
-    const resp = await createMetaTemplet(
-      "v18.0",
+    const requestBody = JSON.parse(JSON.stringify(req.body || {}));
+    const mediaHeader = getMediaHeader(requestBody);
+    const mediaHandle = mediaHeader?.example?.header_handle?.[0];
+    let mediaRecord = null;
+
+    if (mediaHeader) {
+      if (!mediaHandle || typeof mediaHandle !== "string") {
+        return res.json({
+          success: false,
+          msg: "The media upload did not return a valid Meta handle. Please upload the header file again.",
+        });
+      }
+
+      const mediaRows = await query(
+        `SELECT * FROM meta_templet_media
+         WHERE uid = ? AND templet_name = ? AND meta_hash = ?
+         ORDER BY id DESC LIMIT 1`,
+        [req.decode.uid, requestBody.name, mediaHandle],
+      );
+      mediaRecord = mediaRows[0] || null;
+
+      if (!mediaRecord) {
+        return res.json({
+          success: false,
+          msg: "The uploaded media could not be matched to this template. Please upload it again.",
+        });
+      }
+    }
+
+    let resp = await createMetaTemplet(
+      META_API_VERSION,
       getAPIKEYS[0]?.waba_id,
       getAPIKEYS[0]?.access_token,
-      req.body,
+      requestBody,
     );
 
+    logMetaTemplateAttempt({
+      stage: "header_handle",
+      mediaType: mediaHeader?.format,
+      hasHandle: mediaHandle,
+      hasUrl: false,
+      response: resp,
+    });
+
+    if (mediaHeader && resp?.error && requiresHeaderUrl(resp)) {
+      const mediaUrl = getPublicMediaUrl(mediaRecord?.file_name);
+      const isReachable = await isPublicMediaReachable(mediaUrl);
+
+      if (!isReachable) {
+        return res.json({
+          success: false,
+          msg: "Meta requires a public media URL, but the uploaded file is not reachable over HTTPS.",
+          metaError: {
+            code: resp.error?.code || null,
+            message: getMetaErrorMessage(resp),
+          },
+        });
+      }
+
+      mediaHeader.example = { header_url: [mediaUrl] };
+      resp = await createMetaTemplet(
+        META_API_VERSION,
+        getAPIKEYS[0]?.waba_id,
+        getAPIKEYS[0]?.access_token,
+        requestBody,
+      );
+
+      logMetaTemplateAttempt({
+        stage: "header_url_retry",
+        mediaType: mediaHeader.format,
+        hasHandle: false,
+        hasUrl: mediaUrl,
+        response: resp,
+      });
+    }
+
     if (resp.error) {
-      res.json({ msg: resp?.error?.error_user_msg || resp?.error?.message });
+      return res.json({
+        success: false,
+        msg: getMetaErrorMessage(resp),
+        metaError: {
+          code: resp.error?.code || null,
+          type: resp.error?.type || null,
+          subcode: resp.error?.error_subcode || null,
+        },
+      });
     } else {
-      logger.log(resp);
       res.json({
         msg: "Templet was added and waiting for the review",
         success: true,
@@ -1099,7 +1254,7 @@ router.get("/get_my_meta_templets", validateUser, async (req, res) => {
     }
 
     const resp = await getAllTempletsMeta(
-      "v18.0",
+      META_API_VERSION,
       getMETA[0]?.waba_id,
       getMETA[0]?.access_token,
     );
@@ -1134,7 +1289,7 @@ router.post("/del_meta_templet", validateUser, async (req, res) => {
     }
 
     const resp = await delMetaTemplet(
-      "v18.0",
+      META_API_VERSION,
       getMETA[0]?.waba_id,
       getMETA[0]?.access_token,
       name,
@@ -1206,39 +1361,70 @@ router.post("/return_media_url_meta", validateUser, async (req, res) => {
       });
     });
 
-    setTimeout(async () => {
-      const { fileSizeInBytes, mimeType } = await getFileInfo(
-        `${__dirname}/../client/public/media/${filename}`,
-      );
+    const filePath = `${__dirname}/../client/public/media/${filename}`;
+    const { fileSizeInBytes, mimeType } = await getFileInfo(filePath);
 
-      const getSession = await getSessionUploadMediaMeta(
-        "v18.0",
-        getMETA[0]?.app_id,
-        getMETA[0]?.access_token,
-        fileSizeInBytes,
+    const getSession = await getSessionUploadMediaMeta(
+      META_API_VERSION,
+      getMETA[0]?.app_id,
+      getMETA[0]?.access_token,
+      fileSizeInBytes,
+      mimeType,
+    );
+
+    if (!getSession?.id) {
+      logger.error({
+        event: "meta_media_upload",
+        stage: "create_session",
+        apiVersion: META_API_VERSION,
         mimeType,
-      );
+        success: false,
+        metaErrorCode: getSession?.error?.code || null,
+      });
+      return res.json({
+        success: false,
+        msg: getMetaErrorMessage(getSession),
+        metaError: { code: getSession?.error?.code || null },
+      });
+    }
 
-      const uploadFile = await uploadFileMeta(
-        getSession?.id,
-        `${__dirname}/../client/public/media/${filename}`,
-        "v18.0",
-        getMETA[0]?.access_token,
-      );
+    const uploadFile = await uploadFileMeta(
+      getSession.id,
+      filePath,
+      META_API_VERSION,
+      getMETA[0]?.access_token,
+      mimeType,
+    );
+    const mediaHandle = uploadFile?.data?.h;
 
-      if (!uploadFile?.success) {
-        return res.json({ success: false, msg: "Please check your meta API" });
-      }
+    logger.log({
+      event: "meta_media_upload",
+      stage: "upload_file",
+      apiVersion: META_API_VERSION,
+      mimeType,
+      success: Boolean(uploadFile?.success && mediaHandle),
+      hasHandle: Boolean(mediaHandle),
+      metaErrorCode: uploadFile?.data?.error?.code || null,
+    });
 
-      const url = `${process.env.FRONTENDURI}/media/${filename}`;
+    if (!uploadFile?.success || !mediaHandle) {
+      return res.json({
+        success: false,
+        msg:
+          uploadFile?.data?.error?.message ||
+          "Meta did not return a valid media handle. Please upload the file again.",
+        metaError: { code: uploadFile?.data?.error?.code || null },
+      });
+    }
 
-      await query(
-        `INSERT INTO meta_templet_media (uid, templet_name, meta_hash, file_name) VALUES (?,?,?,?)`,
-        [req.decode.uid, req.body?.templet_name, uploadFile?.data?.h, filename],
-      );
+    const url = getPublicMediaUrl(filename);
 
-      res.json({ success: true, url, hash: uploadFile?.data?.h });
-    }, 1000);
+    await query(
+      `INSERT INTO meta_templet_media (uid, templet_name, meta_hash, file_name) VALUES (?,?,?,?)`,
+      [req.decode.uid, req.body.templet_name, mediaHandle, filename],
+    );
+
+    res.json({ success: true, url, hash: mediaHandle });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong", err });
     logger.log(err);
@@ -3089,7 +3275,7 @@ router.post("/send_template_message", validateUser, async (req, res) => {
 
     // Send the template message
     const response = await sendTemplateMessage(
-      "v18.0",
+      META_API_VERSION,
       getMETA[0]?.business_phone_number_id,
       getMETA[0]?.access_token,
       template_name,
