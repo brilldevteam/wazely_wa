@@ -1155,12 +1155,22 @@ router.post("/add_meta_templet", validateUser, checkPlan, async (req, res) => {
         });
       }
 
-      const mediaRows = await query(
+      let mediaRows = await query(
         `SELECT * FROM meta_templet_media
          WHERE uid = ? AND templet_name = ? AND meta_hash = ?
          ORDER BY id DESC LIMIT 1`,
         [req.decode.uid, requestBody.name, mediaHandle],
       );
+
+      if (mediaRows.length < 1) {
+        mediaRows = await query(
+          `SELECT * FROM meta_templet_media
+           WHERE uid = ? AND templet_name = ?
+           ORDER BY id DESC LIMIT 1`,
+          [req.decode.uid, requestBody.name],
+        );
+      }
+
       mediaRecord = mediaRows[0] || null;
 
       if (!mediaRecord) {
@@ -1169,6 +1179,8 @@ router.post("/add_meta_templet", validateUser, checkPlan, async (req, res) => {
           msg: "The uploaded media could not be matched to this template. Please upload it again.",
         });
       }
+
+      mediaHeader.example = { header_handle: [mediaRecord.meta_hash] };
     }
 
     let resp = await createMetaTemplet(
@@ -1320,11 +1332,16 @@ router.post("/return_media_url_meta", validateUser, async (req, res) => {
       return res.json({
         success: false,
         msg: "Please give a templet name first ",
+        message: "Please give a templet name first ",
       });
     }
 
     if (!req.files || Object.keys(req.files).length === 0) {
-      return res.json({ success: false, msg: "No files were uploaded" });
+      return res.json({
+        success: false,
+        msg: "No files were uploaded",
+        message: "No files were uploaded",
+      });
     }
 
     const getMETA = await query(`SELECT * FROM meta_api WHERE uid = ?`, [
@@ -1334,6 +1351,7 @@ router.post("/return_media_url_meta", validateUser, async (req, res) => {
       return res.json({
         success: false,
         msg: "Please check your meta API keys",
+        message: "Please check your meta API keys",
       });
     }
 
@@ -1344,6 +1362,7 @@ router.post("/return_media_url_meta", validateUser, async (req, res) => {
       return res.status(400).json({
         success: false,
         msg: "Invalid file type",
+        message: "Invalid file type",
       });
     }
 
@@ -1384,6 +1403,7 @@ router.post("/return_media_url_meta", validateUser, async (req, res) => {
       return res.json({
         success: false,
         msg: getMetaErrorMessage(getSession),
+        message: getMetaErrorMessage(getSession),
         metaError: { code: getSession?.error?.code || null },
       });
     }
@@ -1408,11 +1428,13 @@ router.post("/return_media_url_meta", validateUser, async (req, res) => {
     });
 
     if (!uploadFile?.success || !mediaHandle) {
+      const message =
+        uploadFile?.data?.error?.message ||
+        "Meta did not return a valid media handle. Please upload the file again.";
       return res.json({
         success: false,
-        msg:
-          uploadFile?.data?.error?.message ||
-          "Meta did not return a valid media handle. Please upload the file again.",
+        msg: message,
+        message,
         metaError: { code: uploadFile?.data?.error?.code || null },
       });
     }
@@ -1426,7 +1448,11 @@ router.post("/return_media_url_meta", validateUser, async (req, res) => {
 
     res.json({ success: true, url, hash: mediaHandle });
   } catch (err) {
-    res.json({ success: false, msg: "something went wrong", err });
+    res.json({
+      success: false,
+      msg: err?.message || "something went wrong",
+      message: err?.message || "something went wrong",
+    });
     logger.log(err);
   }
 });
