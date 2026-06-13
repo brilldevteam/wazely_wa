@@ -9,7 +9,7 @@
     "migrate:meta-hash": "node scripts/migrate-meta-hash.js",
     "migrate:menu-permissions": "node scripts/migrate-menu-permissions.js",
     "patch:menu-permissions": "node scripts/patch-compiled-menu-permissions.js",
-    "test:menu-permissions": "node tests/menuPermissions.test.js"
+    "test:menu-permissions": "node tests/menuPermissions.test.js && node tests/planMenuClient.test.js"
   },
   "keywords": [],
   "author": "",
