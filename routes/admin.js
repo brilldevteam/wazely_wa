@@ -17,6 +17,36 @@ const {
   sendFcmPushNotification,
 } = require("../helper/addon/web-notification/webPush.js");
 const logger = require("../utils/logger.js");
+const {
+  createDefaultMenuPermissions,
+  normalizeMenuPermissions,
+} = require("../config/menuPermissions.js");
+
+async function propagatePlanPermissions(plan) {
+  const users = await query(
+    `SELECT uid, plan FROM user WHERE plan IS NOT NULL AND plan <> ''`,
+    [],
+  );
+  const serializedPlan = JSON.stringify(plan);
+  const matchingUsers = users.filter((user) => {
+    try {
+      return String(JSON.parse(user.plan)?.id) === String(plan.id);
+    } catch {
+      return false;
+    }
+  });
+
+  await Promise.all(
+    matchingUsers.map((user) =>
+      query(`UPDATE user SET plan = ? WHERE uid = ?`, [
+        serializedPlan,
+        user.uid,
+      ]),
+    ),
+  );
+
+  return matchingUsers.length;
+}
 
 router.post("/login", async (req, res) => {
   try {
@@ -79,6 +109,7 @@ router.post("/add_plan", adminValidator, async (req, res) => {
       rest_api_qr,
       instagram_inbox,
       telegram_inbox,
+      menu_permissions,
       allow_wa_forms, // ✅ NEW
     } = req.body;
 
@@ -86,11 +117,26 @@ router.post("/add_plan", adminValidator, async (req, res) => {
       return res.json({ success: false, msg: "Please fill details" });
     }
 
+    let normalizedMenuPermissions;
+    try {
+      normalizedMenuPermissions = normalizeMenuPermissions(
+        menu_permissions,
+        true,
+      );
+    } catch {
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid menu permissions",
+      });
+    }
+
     await query(
-      `INSERT INTO plan (title, short_description, allow_tag, allow_note, allow_chatbot, 
-        contact_limit, allow_api, is_trial, price, price_strike, plan_duration_in_days, 
-        qr_account, wa_warmer, rest_api_qr, instagram_inbox, telegram_inbox, allow_wa_forms) 
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, // ✅ 17 values
+      `INSERT INTO plan (
+        title, short_description, allow_tag, allow_note, allow_chatbot,
+        contact_limit, allow_api, is_trial, price, price_strike,
+        plan_duration_in_days, qr_account, wa_warmer, rest_api_qr,
+        instagram_inbox, telegram_inbox, allow_wa_forms, menu_permissions
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         title,
         short_description,
@@ -108,7 +154,8 @@ router.post("/add_plan", adminValidator, async (req, res) => {
         rest_api_qr ? 1 : 0,
         instagram_inbox ? 1 : 0,
         telegram_inbox ? 1 : 0,
-        allow_wa_forms ? 1 : 0, // ✅ NEW
+        allow_wa_forms ? 1 : 0,
+        JSON.stringify(normalizedMenuPermissions),
       ],
     );
 
@@ -140,12 +187,38 @@ router.post("/update_plan_data", adminValidator, async (req, res) => {
       rest_api_qr,
       instagram_inbox,
       telegram_inbox,
+      menu_permissions,
       allow_wa_forms, // ✅ NEW
     } = req.body;
 
     if (!id) return res.json({ success: false, msg: "Plan ID is required" });
     if (!title || !short_description || !plan_duration_in_days)
       return res.json({ success: false, msg: "Please fill all details" });
+
+    const currentPlans = await query(`SELECT * FROM plan WHERE id = ?`, [id]);
+    if (currentPlans.length < 1) {
+      return res.status(404).json({
+        success: false,
+        msg: "Plan was not found",
+      });
+    }
+
+    let normalizedMenuPermissions;
+    try {
+      normalizedMenuPermissions =
+        typeof menu_permissions === "undefined"
+          ? normalizeMenuPermissions(
+              currentPlans[0].menu_permissions ||
+                createDefaultMenuPermissions(true),
+              true,
+            )
+          : normalizeMenuPermissions(menu_permissions, true);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid menu permissions",
+      });
+    }
 
     await query(
       `UPDATE plan SET 
@@ -154,7 +227,7 @@ router.post("/update_plan_data", adminValidator, async (req, res) => {
         price = ?, price_strike = ?, plan_duration_in_days = ?,
         qr_account = ?, wa_warmer = ?, rest_api_qr = ?,
         instagram_inbox = ?, telegram_inbox = ?,
-        allow_wa_forms = ?  -- ✅ NEW
+        allow_wa_forms = ?, menu_permissions = ?
        WHERE id = ?`,
       [
         title,
@@ -174,11 +247,19 @@ router.post("/update_plan_data", adminValidator, async (req, res) => {
         instagram_inbox ? 1 : 0,
         telegram_inbox ? 1 : 0,
         allow_wa_forms ? 1 : 0, // ✅ NEW
+        JSON.stringify(normalizedMenuPermissions),
         id,
       ],
     );
 
-    res.json({ success: true, msg: "Plan updated successfully" });
+    const updatedPlans = await query(`SELECT * FROM plan WHERE id = ?`, [id]);
+    const updatedUsers = await propagatePlanPermissions(updatedPlans[0]);
+
+    res.json({
+      success: true,
+      msg: "Plan updated successfully",
+      updatedUsers,
+    });
   } catch (err) {
     res.json({ success: false, msg: "Something went wrong" });
     logger.log(err);

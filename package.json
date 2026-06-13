@@ -6,7 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "migrate:meta-hash": "node scripts/migrate-meta-hash.js"
+    "migrate:meta-hash": "node scripts/migrate-meta-hash.js",
+    "migrate:menu-permissions": "node scripts/migrate-menu-permissions.js",
+    "patch:menu-permissions": "node scripts/patch-compiled-menu-permissions.js",
+    "test:menu-permissions": "node tests/menuPermissions.test.js"
   },
   "keywords": [],
   "author": "",

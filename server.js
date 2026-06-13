@@ -10,6 +10,9 @@ const { init, cleanup } = require("./helper/addon/qr");
 const { warmerLoopInit } = require("./helper/addon/qr/warmer/index.js");
 const { initTele, cleanupTele } = require("./helper/addon/telegram/tele.js");
 const isLogging = process.env.NODE_ENV === "logs";
+const {
+  enforceMenuPermissions,
+} = require("./middlewares/menuPermission.js");
 
 function updateLangJsonFromEnglish() {
   try {
@@ -122,6 +125,7 @@ app.use(
 );
 
 app.use(fileUpload());
+app.use(enforceMenuPermissions);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/user", require("./routes/user"));
