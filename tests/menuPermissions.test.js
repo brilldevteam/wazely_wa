@@ -1,4 +1,6 @@
 const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
 const {
   MENU_IDS,
   createDefaultMenuPermissions,
@@ -34,6 +36,17 @@ assert.strictEqual(resolveMenuId("/api/webhook/webhook/123"), null);
 assert.strictEqual(
   resolveMenuId("/api/user/return_media_url_meta"),
   "create-meta-template",
+);
+
+const compiledBundle = fs.readFileSync(
+  path.resolve(__dirname, "../client/public/static/js/main.fdeccb96.js"),
+  "utf8",
+);
+assert.ok(compiledBundle.includes("window.__planMenuAllowed(e.id)"));
+assert.ok(
+  compiledBundle.includes(
+    'window.addEventListener("plan-menu-permissions-loaded"',
+  ),
 );
 
 console.log("Menu permission tests passed");
