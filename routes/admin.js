@@ -696,7 +696,12 @@ router.post("/auto_login", adminValidator, async (req, res) => {
       {},
     );
 
-    res.json({ success: true, token });
+    res.json({
+      success: true,
+      token,
+      plan: user[0].plan,
+      uid: user[0].uid,
+    });
   } catch (err) {
     logger.log(err);
     res.json({ msg: "server error", err });

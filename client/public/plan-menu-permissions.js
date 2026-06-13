@@ -16,9 +16,10 @@
   var menuIds = sections.reduce(function (ids, section) {
     return ids.concat(section[1].map(function (menu) { return menu[0]; }));
   }, []);
-  var currentPermissions = null;
   var plans = [];
   var activeAdminPermissions = null;
+  var currentUserId = getTokenUserId();
+  var currentPermissions = defaults(false);
 
   function defaults(enabled) {
     return menuIds.reduce(function (result, id) {
@@ -46,8 +47,31 @@
     }
   }
 
+  function getTokenUserId() {
+    try {
+      var token = localStorage.getItem("wacrm_user");
+      if (!token) return null;
+      var payload = token.split(".")[1];
+      if (!payload) return null;
+      payload = payload.replace(/-/g, "+").replace(/_/g, "/");
+      while (payload.length % 4) payload += "=";
+      return String(JSON.parse(atob(payload)).uid || "");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function syncCurrentUser() {
+    var tokenUserId = getTokenUserId();
+    if (!tokenUserId) return;
+    if (tokenUserId === currentUserId) return;
+    currentUserId = tokenUserId;
+    currentPermissions = defaults(false);
+  }
+
   window.__planMenuAllowed = function (menuId) {
-    return menuId === "dashboard" || currentPermissions === null || currentPermissions[menuId] === true;
+    syncCurrentUser();
+    return menuId === "dashboard" || currentPermissions[menuId] === true;
   };
 
   function showRedirectNotice() {
@@ -71,23 +95,69 @@
     showRedirectNotice();
   }
 
+  function applyPlanPermissions(planValue, uid) {
+    var plan = planValue;
+    currentUserId = String(uid || getTokenUserId() || "");
+    try {
+      plan = typeof plan === "string" ? JSON.parse(plan) : plan;
+    } catch (error) {
+      plan = null;
+    }
+    currentPermissions =
+      parsePermissions(plan && plan.menu_permissions, false) || defaults(true);
+    guardCurrentPage();
+    window.dispatchEvent(new CustomEvent("plan-menu-permissions-loaded"));
+  }
+
   function consumeResponse(url, data) {
     if (!data || typeof data !== "object") return;
     if (url.indexOf("/api/user/get_me") !== -1 && data.success && data.data) {
-      var plan = data.data.plan;
-      try {
-        plan = typeof plan === "string" ? JSON.parse(plan) : plan;
-      } catch (error) {
-        plan = null;
-      }
-      currentPermissions = parsePermissions(plan && plan.menu_permissions, false);
-      guardCurrentPage();
-      window.dispatchEvent(new CustomEvent("plan-menu-permissions-loaded"));
+      applyPlanPermissions(data.data.plan, data.data.uid);
+    }
+    if (
+      data.success &&
+      Object.prototype.hasOwnProperty.call(data, "plan") &&
+      (
+        url.indexOf("/api/user/login") !== -1 ||
+        url.indexOf("/api/admin/auto_login") !== -1
+      )
+    ) {
+      applyPlanPermissions(data.plan, data.uid);
     }
     if (url.indexOf("/api/admin/get_plans") !== -1 && data.success) {
       plans = Array.isArray(data.data) ? data.data : [];
       window.dispatchEvent(new CustomEvent("admin-plan-permissions-loaded"));
     }
+  }
+
+  function loadCurrentUserPermissions(token) {
+    if (!token) return Promise.resolve(false);
+    var tokenUserId = getTokenUserId();
+    if (tokenUserId !== currentUserId) {
+      currentUserId = tokenUserId;
+      currentPermissions = defaults(false);
+    }
+    window.dispatchEvent(new CustomEvent("plan-menu-permissions-loaded"));
+
+    return originalFetch.call(
+      window,
+      "/api/user/get_me?userOnly=true",
+      {
+        headers: {
+          Authorization: "Bearer " + token,
+        },
+      },
+    )
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        consumeResponse("/api/user/get_me", data);
+        return data && data.success === true;
+      })
+      .catch(function () {
+        return false;
+      });
   }
 
   function enhanceRequestBody(url, body) {
@@ -106,6 +176,16 @@
   }
 
   var originalFetch = window.fetch;
+  window.__loadPlanMenuPermissions = loadCurrentUserPermissions;
+
+  var originalStorageSetItem = Storage.prototype.setItem;
+  Storage.prototype.setItem = function (key, value) {
+    originalStorageSetItem.apply(this, arguments);
+    if (this === localStorage && key === "wacrm_user") {
+      loadCurrentUserPermissions(String(value));
+    }
+  };
+
   window.fetch = function (input, init) {
     var url = typeof input === "string" ? input : input.url;
     var options = init ? Object.assign({}, init) : {};

@@ -13,9 +13,18 @@ if (componentStart < 0) {
 }
 
 const refreshHook =
+  'const[,planMenuRefresh]=t.useState(0);t.useEffect((()=>{const e=()=>planMenuRefresh((e=>e+1));return window.addEventListener("plan-menu-permissions-loaded",e),e(),()=>window.removeEventListener("plan-menu-permissions-loaded",e)}),[]);';
+
+const previousRefreshHook =
   'const[,planMenuRefresh]=t.useState(0);t.useEffect((()=>{const e=()=>planMenuRefresh((e=>e+1));return window.addEventListener("plan-menu-permissions-loaded",e),()=>window.removeEventListener("plan-menu-permissions-loaded",e)}),[]);';
 
-if (!source.includes('window.addEventListener("plan-menu-permissions-loaded"')) {
+if (source.includes(previousRefreshHook)) {
+  source = source.replace(previousRefreshHook, refreshHook);
+} else if (
+  !source.includes(
+    'window.addEventListener("plan-menu-permissions-loaded",e),e()',
+  )
+) {
   const componentBodyStart = componentStart + "Oge=()=>{".length;
   source =
     source.slice(0, componentBodyStart) +

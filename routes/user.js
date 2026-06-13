@@ -253,6 +253,8 @@ router.post("/login_with_facebook", async (req, res) => {
       return res.json({
         success: true,
         token: loginToken,
+        plan: null,
+        uid,
       });
     }
 
@@ -272,6 +274,8 @@ router.post("/login_with_facebook", async (req, res) => {
     return res.json({
       success: true,
       token: loginToken,
+      plan: getUser[0].plan,
+      uid: getUser[0].uid,
     });
   } catch (err) {
     logger.log(err);
@@ -343,6 +347,8 @@ router.post("/login_with_google", async (req, res) => {
       return res.json({
         success: true,
         token: loginToken,
+        plan: null,
+        uid,
       });
     }
 
@@ -362,6 +368,8 @@ router.post("/login_with_google", async (req, res) => {
     return res.json({
       success: true,
       token: loginToken,
+      plan: getUser[0].plan,
+      uid: getUser[0].uid,
     });
   } catch (err) {
     logger.log(err);
@@ -461,6 +469,8 @@ router.post("/login", async (req, res) => {
       res.json({
         success: true,
         token,
+        plan: userFind[0].plan,
+        uid: userFind[0].uid,
       });
     }
   } catch (err) {
