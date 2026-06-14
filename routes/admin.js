@@ -793,14 +793,27 @@ router.get("/get_orders", adminValidator, async (req, res) => {
 router.post("/del_order", adminValidator, async (req, res) => {
   try {
     const { id } = req.body;
-    await query(`DELETE FROM orders WHERE id = ? AND uid = ?`, [
-      id,
-      req.decode.uid,
-    ]);
+
+    if (!id) {
+      return res.json({
+        msg: "Order id is required",
+        success: false,
+      });
+    }
+
+    const result = await query(`DELETE FROM orders WHERE id = ?`, [id]);
+
+    if (result.affectedRows === 0) {
+      return res.json({
+        msg: "Order was not found or was already deleted",
+        success: false,
+      });
+    }
+
     res.json({ msg: "Order enter was deleted", success: true });
   } catch (err) {
     logger.log(err);
-    res.json({ msg: "server error", err });
+    res.json({ msg: "server error", success: false });
   }
 });
 
