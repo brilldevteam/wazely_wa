@@ -106,8 +106,7 @@
       '  </div>',
       '  <button class="wazely-submit" type="submit">Create Account</button>',
       '</form>',
-      '<p class="wazely-create">Already have an account? <a class="wazely-link" href="/user/login">Sign In</a></p>',
-      '<p class="wazely-terms">By creating an account, you agree to our <a class="wazely-link" href="/terms">Terms & Conditions</a> and <a class="wazely-link" href="/privacy">Privacy Policy</a></p>'
+      '<p class="wazely-create">Already have an account? <a class="wazely-link" href="/user/login">Sign In</a></p>'
     ].join("");
   }
 
