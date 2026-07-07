@@ -423,6 +423,25 @@ body.login-screen-refresh #root {
   display: block;
 }
 
+.wazely-error.is-success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.wazely-auth-form[data-mode="signup"] .wazely-field {
+  margin-bottom: 9px;
+}
+
+.wazely-auth-form[data-mode="signup"] .wazely-input {
+  height: 38px;
+}
+
+.wazely-policy-row {
+  margin: 2px 0 16px;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
 .wazely-create {
   margin: 26px 0 0;
   color: #111827;

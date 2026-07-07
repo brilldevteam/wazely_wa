@@ -1,6 +1,10 @@
 (function () {
   var overlayId = "wazely-auth-refresh";
-  var authPaths = ["/user/login"];
+  var authPaths = ["/user/login", "/user/signup"];
+
+  function getMode() {
+    return window.location.pathname === "/user/signup" ? "signup" : "login";
+  }
 
   function isAuthPath() {
     return authPaths.indexOf(window.location.pathname) !== -1;
@@ -97,14 +101,35 @@
     ].join("");
   }
 
+  function signupForm() {
+    return [
+      '<h2>Create Account</h2>',
+      '<p class="wazely-form-subtitle">Create your Wazely Engage account to start managing WhatsApp campaigns and automation.</p>',
+      socialButtons(),
+      '<form class="wazely-auth-form" data-mode="signup" autocomplete="off">',
+      '  <div class="wazely-error" role="alert"></div>',
+      inputField("text", "wazely_signup_name", "Full Name", "u", "Enter your full name", "off", "name"),
+      inputField("email", "wazely_signup_identity", "Email Address", "@", "Enter your email address", "off", "email"),
+      inputField("tel", "wazely_signup_mobile", "Mobile Number", "+", "Enter mobile number with country code", "off", "mobile_with_country_code"),
+      passwordField("Create your password"),
+      '  <div class="wazely-form-row wazely-policy-row">',
+      '    <label class="wazely-remember"><input type="checkbox" data-field="acceptPolicy" required> I agree to the Terms & Conditions and Privacy Policy</label>',
+      '  </div>',
+      '  <button class="wazely-submit" type="submit">Create Account</button>',
+      '</form>',
+      '<p class="wazely-create">Already have an account? <a class="wazely-link" href="/user/login">Sign In</a></p>'
+    ].join("");
+  }
+
   function html() {
+    var mode = getMode();
     return [
       '<main class="wazely-login-page">',
       '  <section class="wazely-login-card" aria-label="Wazely authentication">',
       brandPanel(),
       '    <section class="wazely-form-panel">',
       '      <div class="wazely-form-wrap">',
-      loginForm(),
+      mode === "signup" ? signupForm() : loginForm(),
       '      </div>',
       '    </section>',
       '  </section>',
@@ -112,9 +137,10 @@
     ].join("");
   }
 
-  function showError(form, message) {
+  function showError(form, message, success) {
     var error = form.querySelector(".wazely-error");
     error.textContent = message || "Something went wrong. Please try again.";
+    error.classList.toggle("is-success", Boolean(success));
     error.classList.add("is-visible");
   }
 
@@ -143,29 +169,38 @@
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
 
+      var mode = form.getAttribute("data-mode");
       var submit = form.querySelector(".wazely-submit");
       var error = form.querySelector(".wazely-error");
-      var email = form.querySelector('[data-field="email"]');
-      var payload = {
-        email: email.value.trim(),
-        password: password.value.trim()
-      };
+      var payload = {};
 
-      error.classList.remove("is-visible");
+      Array.prototype.forEach.call(form.querySelectorAll("[data-field]"), function (field) {
+        payload[field.getAttribute("data-field")] = field.type === "checkbox" ? field.checked : field.value.trim();
+      });
+
+      error.classList.remove("is-visible", "is-success");
       submit.disabled = true;
-      submit.textContent = "Signing in...";
+      submit.textContent = mode === "signup" ? "Creating account..." : "Signing in...";
 
       try {
-        var response = await fetch("/api/user/login", {
+        var response = await fetch(mode === "signup" ? "/api/user/signup" : "/api/user/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
         var data = await response.json();
 
-        if (data && data.success && data.token) {
+        if (mode === "login" && data && data.success && data.token) {
           localStorage.setItem("wacrm_user", data.token);
           window.location.href = "/user";
+          return;
+        }
+
+        if (mode === "signup" && data && data.success) {
+          showError(form, "Account created successfully. Redirecting to sign in...", true);
+          setTimeout(function () {
+            window.location.href = "/user/login";
+          }, 900);
           return;
         }
 
@@ -174,7 +209,7 @@
         showError(form, "Could not reach the server. Please try again.");
       } finally {
         submit.disabled = false;
-        submit.textContent = "Sign In";
+        submit.textContent = mode === "signup" ? "Create Account" : "Sign In";
       }
     });
   }
