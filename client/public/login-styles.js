@@ -1,8 +1,9 @@
 (function () {
   var overlayId = "wazely-auth-refresh";
-  var authPaths = ["/user/login", "/user/signup"];
+  var authPaths = ["/user/login", "/user/signup", "/admin/login"];
 
   function getMode() {
+    if (window.location.pathname === "/admin/login") return "admin";
     return window.location.pathname === "/user/signup" ? "signup" : "login";
   }
 
@@ -33,6 +34,24 @@
       '    <div class="wazely-feature-item">' + featureIcon("trigger") + '<strong>Automate replies with smart triggers</strong></div>',
       '    <div class="wazely-feature-item">' + featureIcon("contacts") + '<strong>Manage unlimited contacts & campaigns</strong></div>',
       '    <div class="wazely-feature-item">' + featureIcon("plug") + '<strong>Connect webhooks and third-party apps</strong></div>',
+      '  </div>',
+      '</aside>'
+    ].join("");
+  }
+
+  function adminBrandPanel() {
+    return [
+      '<aside class="wazely-brand-panel wazely-admin-brand-panel">',
+      '  <div class="wazely-logo"><span class="wazely-logo-mark">w</span><span class="wazely-logo-word">Wazely Engage</span></div>',
+      '  <p class="wazely-admin-kicker">Admin workspace</p>',
+      '  <h1>Control your WhatsApp operations with confidence</h1>',
+      '  <p class="wazely-brand-copy">Access platform settings, users, plans, reports, and system controls from one protected admin area.</p>',
+      '  <div class="wazely-feature-list">',
+      '    <div class="wazely-feature-item">' + featureIcon("contacts") + '<strong>Review users, agents, and subscriptions</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("flow") + '<strong>Manage plans, templates, and automation settings</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("trigger") + '<strong>Monitor messaging activity and platform health</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("plug") + '<strong>Configure integrations, webhooks, and API access</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("message") + '<strong>Keep restricted admin actions protected</strong></div>',
       '  </div>',
       '</aside>'
     ].join("");
@@ -121,15 +140,38 @@
     ].join("");
   }
 
+  function adminForm() {
+    return [
+      '<div class="wazely-admin-form-head">',
+      '  <span class="wazely-admin-badge" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6l-7-3Z"/><path d="M9.5 12.5 11.2 14l3.4-4"/></svg></span>',
+      '  <div>',
+      '    <h2>Admin Portal</h2>',
+      '    <p class="wazely-form-subtitle">Sign in with your admin credentials to manage Wazely Engage.</p>',
+      '  </div>',
+      '</div>',
+      '<form class="wazely-auth-form wazely-admin-auth-form" data-mode="admin" autocomplete="off">',
+      '  <div class="wazely-error" role="alert"></div>',
+      inputField("email", "wazely_admin_identity", "Email Address", "@", "Enter admin email address", "off", "email"),
+      passwordField("Enter admin password"),
+      '  <div class="wazely-form-row wazely-admin-row">',
+      '    <span class="wazely-admin-lock">Restricted access only</span>',
+      '    <a class="wazely-link" href="#">Forgot password?</a>',
+      '  </div>',
+      '  <button class="wazely-submit" type="submit">Sign in to Admin</button>',
+      '</form>',
+      '<p class="wazely-admin-note">This area is only for authorized administrators. Activity may be monitored for security.</p>'
+    ].join("");
+  }
+
   function html() {
     var mode = getMode();
     return [
-      '<main class="wazely-login-page">',
+      '<main class="wazely-login-page' + (mode === "admin" ? " wazely-admin-page" : "") + '">',
       '  <section class="wazely-login-card" aria-label="Wazely authentication">',
-      brandPanel(),
+      mode === "admin" ? adminBrandPanel() : brandPanel(),
       '    <section class="wazely-form-panel">',
       '      <div class="wazely-form-wrap">',
-      mode === "signup" ? signupForm() : loginForm(),
+      mode === "admin" ? adminForm() : mode === "signup" ? signupForm() : loginForm(),
       '      </div>',
       '    </section>',
       '  </section>',
@@ -303,22 +345,30 @@
     var googleButton = overlay.querySelector("[data-google-login]");
     var facebookButton = overlay.querySelector("[data-facebook-login]");
 
-    preloadSocialAuth();
+    if (googleButton || facebookButton) {
+      preloadSocialAuth();
+    }
 
-    toggle.addEventListener("click", function () {
-      var show = password.type === "password";
-      password.type = show ? "text" : "password";
-      toggle.textContent = show ? "hide" : "show";
-      toggle.setAttribute("aria-label", show ? "Hide password" : "Show password");
-    });
+    if (toggle && password) {
+      toggle.addEventListener("click", function () {
+        var show = password.type === "password";
+        password.type = show ? "text" : "password";
+        toggle.textContent = show ? "hide" : "show";
+        toggle.setAttribute("aria-label", show ? "Hide password" : "Show password");
+      });
+    }
 
-    googleButton.addEventListener("click", function () {
-      loginWithGoogle(form);
-    });
+    if (googleButton) {
+      googleButton.addEventListener("click", function () {
+        loginWithGoogle(form);
+      });
+    }
 
-    facebookButton.addEventListener("click", function () {
-      loginWithFacebook(form);
-    });
+    if (facebookButton) {
+      facebookButton.addEventListener("click", function () {
+        loginWithFacebook(form);
+      });
+    }
 
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
@@ -337,7 +387,8 @@
       submit.textContent = mode === "signup" ? "Creating account..." : "Signing in...";
 
       try {
-        var response = await fetch(mode === "signup" ? "/api/user/signup" : "/api/user/login", {
+        var endpoint = mode === "admin" ? "/api/admin/login" : mode === "signup" ? "/api/user/signup" : "/api/user/login";
+        var response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -347,6 +398,12 @@
         if (mode === "login" && data && data.success && data.token) {
           localStorage.setItem("wacrm_user", data.token);
           window.location.href = "/user";
+          return;
+        }
+
+        if (mode === "admin" && data && data.success && data.token) {
+          localStorage.setItem("wacrm_admin", data.token);
+          window.location.href = "/admin";
           return;
         }
 
@@ -363,7 +420,7 @@
         showError(form, "Could not reach the server. Please try again.");
       } finally {
         submit.disabled = false;
-        submit.textContent = mode === "signup" ? "Create Account" : "Sign In";
+        submit.textContent = mode === "admin" ? "Sign in to Admin" : mode === "signup" ? "Create Account" : "Sign In";
       }
     });
   }
