@@ -6,6 +6,17 @@
     return authPaths.indexOf(window.location.pathname) !== -1;
   }
 
+  function featureIcon(type) {
+    var icons = {
+      message: '<svg viewBox="0 0 24 24" focusable="false"><path d="M5 6.5h14v8.5H8.5L5 18.5v-12Z"/><path d="M8 9.5h8"/><path d="M8 12.5h5"/></svg>',
+      flow: '<svg viewBox="0 0 24 24" focusable="false"><path d="M7 7h4v4H7z"/><path d="M13 13h4v4h-4z"/><path d="M9 11v2a2 2 0 0 0 2 2h2"/><path d="M15 7h2a2 2 0 0 1 2 2v1"/></svg>',
+      trigger: '<svg viewBox="0 0 24 24" focusable="false"><path d="m13 2-7 11h5l-1 9 8-12h-5l1-8Z"/></svg>',
+      contacts: '<svg viewBox="0 0 24 24" focusable="false"><path d="M9.5 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M4.5 19a5 5 0 0 1 10 0"/><path d="M16 11.5a2.5 2.5 0 1 0 0-5"/><path d="M17 15a4 4 0 0 1 3 4"/></svg>',
+      plug: '<svg viewBox="0 0 24 24" focusable="false"><path d="M9 7V3"/><path d="M15 7V3"/><path d="M7 7h10v4a5 5 0 0 1-10 0V7Z"/><path d="M12 16v5"/></svg>'
+    };
+    return '<span class="wazely-feature-icon" aria-hidden="true">' + icons[type] + '</span>';
+  }
+
   function brandPanel() {
     return [
       '<aside class="wazely-brand-panel">',
@@ -13,11 +24,11 @@
       '  <h1>Automate your business with the power of WhatsApp</h1>',
       '  <p class="wazely-brand-copy">Sign in to your account or create a new one to get started.</p>',
       '  <div class="wazely-feature-list">',
-      '    <div class="wazely-feature-item"><span>&check;</span><strong>Send bulk WhatsApp messages in seconds</strong></div>',
-      '    <div class="wazely-feature-item"><span>&check;</span><strong>Build powerful chatbot flows visually</strong></div>',
-      '    <div class="wazely-feature-item"><span>&check;</span><strong>Automate replies with smart triggers</strong></div>',
-      '    <div class="wazely-feature-item"><span>&check;</span><strong>Manage unlimited contacts & campaigns</strong></div>',
-      '    <div class="wazely-feature-item"><span>&check;</span><strong>Connect webhooks and third-party apps</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("message") + '<strong>Send bulk WhatsApp messages in seconds</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("flow") + '<strong>Build powerful chatbot flows visually</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("trigger") + '<strong>Automate replies with smart triggers</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("contacts") + '<strong>Manage unlimited contacts & campaigns</strong></div>',
+      '    <div class="wazely-feature-item">' + featureIcon("plug") + '<strong>Connect webhooks and third-party apps</strong></div>',
       '  </div>',
       '</aside>'
     ].join("");
