@@ -144,12 +144,166 @@
     error.classList.add("is-visible");
   }
 
+  function isEnabled(value) {
+    return value === true || value === 1 || value === "1" || value === "true";
+  }
+
+  function loadScript(src, id) {
+    return new Promise(function (resolve, reject) {
+      var existing = document.getElementById(id);
+      if (existing) {
+        if (existing.getAttribute("data-loaded") === "true") {
+          resolve();
+          return;
+        }
+        existing.addEventListener("load", resolve, { once: true });
+        existing.addEventListener("error", reject, { once: true });
+        return;
+      }
+
+      var script = document.createElement("script");
+      script.id = id;
+      script.src = src;
+      script.async = true;
+      script.defer = true;
+      script.addEventListener("load", function () {
+        script.setAttribute("data-loaded", "true");
+        resolve();
+      });
+      script.addEventListener("error", reject);
+      document.head.appendChild(script);
+    });
+  }
+
+  async function getWebConfig() {
+    if (window.__wazelyAuthWebConfig) return window.__wazelyAuthWebConfig;
+
+    var response = await fetch("/api/web/get_web_public");
+    var data = await response.json();
+    window.__wazelyAuthWebConfig = data && data.data ? data.data : {};
+    return window.__wazelyAuthWebConfig;
+  }
+
+  async function completeSocialLogin(form, endpoint, payload) {
+    var response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    var data = await response.json();
+
+    if (data && data.success && data.token) {
+      localStorage.setItem("wacrm_user", data.token);
+      window.location.href = "/user";
+      return;
+    }
+
+    showError(form, data && data.msg ? data.msg : "Social login could not be completed.");
+  }
+
+  async function loginWithGoogle(form) {
+    try {
+      var config = await getWebConfig();
+      if (!isEnabled(config.google_login_active) || !config.google_client_id) {
+        showError(form, "Google login is not configured yet.");
+        return;
+      }
+
+      await loadScript("https://accounts.google.com/gsi/client", "google-identity-services");
+
+      if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
+        showError(form, "Google login could not be loaded. Please try again.");
+        return;
+      }
+
+      var tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: config.google_client_id,
+        scope: "openid email profile",
+        callback: function (tokenResponse) {
+          if (!tokenResponse || !tokenResponse.access_token) {
+            showError(form, "Google login was cancelled.");
+            return;
+          }
+
+          completeSocialLogin(form, "/api/user/login_with_google", {
+            token: tokenResponse.access_token
+          });
+        }
+      });
+
+      tokenClient.requestAccessToken({ prompt: "select_account" });
+    } catch (err) {
+      showError(form, "Google login could not be completed. Please try again.");
+    }
+  }
+
+  async function loginWithFacebook(form) {
+    try {
+      var config = await getWebConfig();
+      if (!isEnabled(config.fb_login_active) || !config.fb_login_app_id) {
+        showError(form, "Facebook login is not configured yet.");
+        return;
+      }
+
+      await loadScript("https://connect.facebook.net/en_US/sdk.js", "facebook-jssdk");
+
+      if (!window.FB) {
+        showError(form, "Facebook login could not be loaded. Please try again.");
+        return;
+      }
+
+      window.FB.init({
+        appId: config.fb_login_app_id,
+        cookie: true,
+        xfbml: false,
+        version: "v22.0"
+      });
+
+      window.FB.login(function (loginResponse) {
+        if (!loginResponse || !loginResponse.authResponse) {
+          showError(form, "Facebook login was cancelled.");
+          return;
+        }
+
+        window.FB.api("/me", { fields: "name,email" }, function (profile) {
+          if (!profile || !profile.email || !profile.name) {
+            showError(form, "Facebook did not return the required account details.");
+            return;
+          }
+
+          completeSocialLogin(form, "/api/user/login_with_facebook", {
+            token: loginResponse.authResponse.accessToken,
+            userId: loginResponse.authResponse.userID,
+            email: profile.email,
+            name: profile.name
+          });
+        });
+      }, { scope: "email,public_profile" });
+    } catch (err) {
+      showError(form, "Facebook login could not be completed. Please try again.");
+    }
+  }
+
+  async function preloadSocialAuth() {
+    try {
+      var config = await getWebConfig();
+      if (isEnabled(config.google_login_active) && config.google_client_id) {
+        loadScript("https://accounts.google.com/gsi/client", "google-identity-services").catch(function () {});
+      }
+      if (isEnabled(config.fb_login_active) && config.fb_login_app_id) {
+        loadScript("https://connect.facebook.net/en_US/sdk.js", "facebook-jssdk").catch(function () {});
+      }
+    } catch (err) {}
+  }
+
   function bindOverlay(overlay) {
     var form = overlay.querySelector(".wazely-auth-form");
     var password = overlay.querySelector('[data-field="password"]');
     var toggle = overlay.querySelector(".wazely-password-toggle");
     var googleButton = overlay.querySelector("[data-google-login]");
     var facebookButton = overlay.querySelector("[data-facebook-login]");
+
+    preloadSocialAuth();
 
     toggle.addEventListener("click", function () {
       var show = password.type === "password";
@@ -159,11 +313,11 @@
     });
 
     googleButton.addEventListener("click", function () {
-      showError(form, "Google login is handled by the main app configuration.");
+      loginWithGoogle(form);
     });
 
     facebookButton.addEventListener("click", function () {
-      showError(form, "Facebook login is handled by the main app configuration.");
+      loginWithFacebook(form);
     });
 
     form.addEventListener("submit", async function (event) {
