@@ -45,62 +45,56 @@ body.login-screen-refresh #root {
   position: relative;
   overflow: hidden;
   padding: 44px 46px 38px;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.12), transparent 150px),
-    radial-gradient(circle at 4% 100%, rgba(255, 255, 255, 0.11), transparent 200px),
-    linear-gradient(135deg, #08a56f 0%, #028866 48%, #006861 100%);
+  background: #08a56f;
   color: #ffffff;
 }
 
 .wazely-brand-panel::before {
-  content: "";
-  position: absolute;
-  inset: auto auto 0 -44px;
-  width: 210px;
-  height: 210px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  content: none;
 }
 
 .wazely-brand-panel::after {
-  content: "";
-  position: absolute;
-  right: 24px;
-  top: 110px;
-  width: 12px;
-  height: 250px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.11);
-  transform: rotate(11deg);
+  content: none;
 }
 
 .wazely-logo {
   position: relative;
   z-index: 1;
   margin-bottom: 34px;
-  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 11px 18px 11px 14px;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
+  border: 0;
+  border-radius: 0;
+  background: #08a56f;
+  box-shadow: none;
 }
 
 .wazely-logo-mark {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: #37f51d;
-  color: #064e3b;
-  font-size: 27px;
-  font-weight: 900;
-  line-height: 1;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wazely-logo-mark img {
+  width: 48px;
+  height: 48px;
+  display: block;
+  object-fit: contain;
 }
 
 .wazely-logo-word {
   color: #ffffff;
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
+  white-space: nowrap;
 }
 
 .wazely-brand-panel h1 {
@@ -485,10 +479,7 @@ body.login-screen-refresh #root {
 }
 
 .wazely-admin-brand-panel {
-  background:
-    radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.14), transparent 150px),
-    radial-gradient(circle at 2% 100%, rgba(255, 255, 255, 0.12), transparent 210px),
-    linear-gradient(135deg, #079c72 0%, #04785f 52%, #07584f 100%);
+  background: #08a56f;
 }
 
 .wazely-admin-form-head {
@@ -600,7 +591,7 @@ body.login-screen-refresh #root {
   }
 
   .wazely-logo-word {
-    font-size: 22px;
+    font-size: 20px;
   }
 
   .wazely-brand-panel h1 {

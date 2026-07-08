@@ -22,10 +22,19 @@
     return '<span class="wazely-feature-icon" aria-hidden="true">' + icons[type] + '</span>';
   }
 
+  function brandLogo() {
+    return [
+      '<div class="wazely-logo" aria-label="Wazely Engage">',
+      '  <span class="wazely-logo-mark" aria-hidden="true"><img src="/media/gAPWnFn03mqdjjlDEiG4LSQj75BWcFRn.png" alt=""></span>',
+      '  <span class="wazely-logo-word">Wazely Engage</span>',
+      '</div>'
+    ].join("");
+  }
+
   function brandPanel() {
     return [
       '<aside class="wazely-brand-panel">',
-      '  <div class="wazely-logo"><span class="wazely-logo-mark">w</span><span class="wazely-logo-word">Wazely Engage</span></div>',
+      '  ' + brandLogo(),
       '  <h1>Automate your business with the power of WhatsApp</h1>',
       '  <p class="wazely-brand-copy">Sign in to your account or create a new one to get started.</p>',
       '  <div class="wazely-feature-list">',
@@ -42,7 +51,7 @@
   function adminBrandPanel() {
     return [
       '<aside class="wazely-brand-panel wazely-admin-brand-panel">',
-      '  <div class="wazely-logo"><span class="wazely-logo-mark">w</span><span class="wazely-logo-word">Wazely Engage</span></div>',
+      '  ' + brandLogo(),
       '  <p class="wazely-admin-kicker">Admin workspace</p>',
       '  <h1>Control your WhatsApp operations with confidence</h1>',
       '  <p class="wazely-brand-copy">Access platform settings, users, plans, reports, and system controls from one protected admin area.</p>',
